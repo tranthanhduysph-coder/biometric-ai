@@ -3,10 +3,13 @@ import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  if (!process.env.VITE_API_KEY) {
-    throw new Error("API Key is missing. Please check your environment variables.");
+  // QUAN TRỌNG: Vite sử dụng import.meta.env, không phải process.env
+  const apiKey = import.meta.env.VITE_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please check your .env file for VITE_API_KEY.");
   }
-  return new GoogleGenAI({ apiKey: process.env.VITE_API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 const fileToGenerativePart = async (file: File) => {
@@ -74,7 +77,7 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: [{ role: 'user', parts: contentParts }],
       config: {
         systemInstruction: getSystemInstructionGenerator(language),
@@ -117,7 +120,7 @@ export const generateBatchQuestions = async (batch: MetricInput[], language: Lan
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: [{ role: 'user', parts: [{ text: promptText }] }],
       config: {
         systemInstruction: getSystemInstructionGenerator(language),
@@ -155,7 +158,7 @@ export const extractMetrics = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         systemInstruction: getSystemInstructionExtractor(language),
@@ -198,7 +201,7 @@ export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: 
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: { temperature: 0.5 },
     });
