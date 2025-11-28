@@ -1,16 +1,16 @@
-
-import firebase from "firebase/app";
-import "firebase/auth";
-import "firebase/firestore";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/firestore";
 
 // Placeholder config - The app will detect if these are still placeholders
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBrI0ak_xI-HPyFUfwcP0lsmNELGZx60_g",
+  authDomain: "biometric-ai.firebaseapp.com",
+  projectId: "biometric-ai",
+  storageBucket: "biometric-ai.firebasestorage.app",
+  messagingSenderId: "63249534834",
+  appId: "1:63249534834:web:7aa0f7da5d35b7c70417eb",
+  measurementId: "G-MQFRJ4JDPH"
 };
 
 // Check if the user has actually set up their keys

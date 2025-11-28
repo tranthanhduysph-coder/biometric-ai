@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import firebase from 'firebase/app';
+import firebase from 'firebase/compat/app'; // Import từ compat
 import { auth, isFirebaseConfigured } from '../firebaseConfig';
 
 // Mock User for Demo Mode

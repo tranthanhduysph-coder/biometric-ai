@@ -1,5 +1,4 @@
-
-import firebase from "firebase/app";
+import firebase from "firebase/compat/app"; // Import từ compat
 import { db, isFirebaseConfigured } from "../firebaseConfig";
 import { QuestionData, IRTAnalysisResult } from "../types";
 
