@@ -1,0 +1,5 @@
+{
+  "name": "BioMetric AI",
+  "description": "An AI-powered tool for educators to generate biology questions from curriculum metrics and reverse-engineer existing questions into learning objectives and competency standards.",
+  "requestFramePermissions": []
+}
