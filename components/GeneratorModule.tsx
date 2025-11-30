@@ -9,47 +9,105 @@ import { useAppContext } from '../contexts/AppContext';
 
 export const GeneratorModule: React.FC = () => {
   const { t, language } = useAppContext();
-  const chapters = Object.keys(CURRICULUM_STRUCTURE);
   
-  const [metrics, setMetrics] = useState<MetricInput>({
-    chapter: chapters[0],
-    content: CURRICULUM_STRUCTURE[chapters[0]][0],
-    difficulty: 'Thông hiểu',
-    competency: 'NT2',
-    type: 'Multiple choices',
-    setting: 'Lý thuyết',
-    hasChart: false,
-    hasImage: false,
-    customPrompt: '',
-    imageFile: null
+  // 1. Get Chapters based on Language
+  const chapters = Object.keys(CURRICULUM_STRUCTURE[language]);
+  
+  // 2. State with Persistence (Initialize from localStorage if available)
+  const [metrics, setMetrics] = useState<MetricInput>(() => {
+    const saved = localStorage.getItem('biometric_gen_metrics');
+    return saved ? JSON.parse(saved) : {
+      chapter: chapters[0],
+      content: CURRICULUM_STRUCTURE[language][chapters[0]][0],
+      difficulty: 'Hiểu',
+      competency: 'NT2',
+      type: 'Multiple choices',
+      setting: 'Lý thuyết',
+      hasChart: false,
+      hasImage: false,
+      customPrompt: '',
+      imageFile: null
+    };
   });
 
-  const [quantity, setQuantity] = useState<number>(1);
-  const [queue, setQueue] = useState<BatchItem[]>([]);
-  
-  const [availableContents, setAvailableContents] = useState<string[]>(CURRICULUM_STRUCTURE[chapters[0]]);
-  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>(['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao']);
+  const [quantity, setQuantity] = useState<number>(() => {
+    return parseInt(localStorage.getItem('biometric_gen_quantity') || '1');
+  });
+
+  const [queue, setQueue] = useState<BatchItem[]>(() => {
+    const saved = localStorage.getItem('biometric_gen_queue');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [results, setResults] = useState<QuestionData[]>(() => {
+    const saved = localStorage.getItem('biometric_gen_results');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // 3. Effects for Persistence
+  useEffect(() => {
+    // Only save serializable parts of metrics (exclude file)
+    const { imageFile, ...saveableMetrics } = metrics;
+    localStorage.setItem('biometric_gen_metrics', JSON.stringify(saveableMetrics));
+  }, [metrics]);
+
+  useEffect(() => { localStorage.setItem('biometric_gen_quantity', quantity.toString()); }, [quantity]);
+  useEffect(() => { localStorage.setItem('biometric_gen_queue', JSON.stringify(queue)); }, [queue]);
+  useEffect(() => { localStorage.setItem('biometric_gen_results', JSON.stringify(results)); }, [results]);
+
+  // 4. Effects for Localization/Logic
+  const [availableContents, setAvailableContents] = useState<string[]>([]);
+  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>(['Ghi nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo']);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // When Language changes, we must reset selections to avoid mismatch
   useEffect(() => {
-    const contents = CURRICULUM_STRUCTURE[metrics.chapter] || [];
-    setAvailableContents(contents);
-    if (contents.length > 0) {
-      setMetrics(prev => ({ ...prev, content: contents[0] }));
+    const newChapters = Object.keys(CURRICULUM_STRUCTURE[language]);
+    const firstChapter = newChapters[0];
+    const firstContent = CURRICULUM_STRUCTURE[language][firstChapter][0];
+    
+    // Check if current chapter exists in new language (unlikely unless exact match), so reset to safe default
+    if (!CURRICULUM_STRUCTURE[language][metrics.chapter]) {
+      setMetrics(prev => ({
+        ...prev,
+        chapter: firstChapter,
+        content: firstContent
+      }));
     }
-  }, [metrics.chapter]);
+  }, [language]);
 
+  // When Chapter changes, update Content
+  useEffect(() => {
+    const contents = CURRICULUM_STRUCTURE[language][metrics.chapter] || [];
+    setAvailableContents(contents);
+    if (!contents.includes(metrics.content)) {
+      setMetrics(prev => ({ ...prev, content: contents[0] || '' }));
+    }
+  }, [metrics.chapter, language]);
+
+  // When Competency changes, filter Difficulty (Bloom 6 Levels)
   useEffect(() => {
     const comp = metrics.competency;
     let newDifficulties: string[] = [];
-    if (comp === 'NT1') newDifficulties = ['Nhận biết'];
-    else if (['TH4', 'TH5', 'VD1', 'VD2'].includes(comp)) newDifficulties = ['Vận dụng', 'Vận dụng cao'];
-    else if (comp.startsWith('TH')) newDifficulties = ['Thông hiểu', 'Vận dụng', 'Vận dụng cao'];
-    else newDifficulties = ['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao'];
+    
+    // Logic mapping mapping Bloom levels based on Competency
+    if (comp === 'NT1') newDifficulties = ['Ghi nhớ', 'Hiểu'];
+    else if (['NT2', 'NT3'].includes(comp)) newDifficulties = ['Hiểu', 'Vận dụng'];
+    else if (['NT4', 'NT5', 'NT6'].includes(comp)) newDifficulties = ['Vận dụng', 'Phân tích'];
+    else if (comp.startsWith('TH')) newDifficulties = ['Phân tích', 'Đánh giá'];
+    else if (comp.startsWith('VD')) newDifficulties = ['Đánh giá', 'Sáng tạo'];
+    else newDifficulties = ['Ghi nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo'];
 
+    // Map to English if needed, but keeping internal values consistent for now simplifies logic
+    // The Constants file handles translation display
     setAvailableDifficulties(newDifficulties);
-    if (!newDifficulties.includes(metrics.difficulty)) {
-      setMetrics(prev => ({ ...prev, difficulty: newDifficulties[0] }));
+    
+    // Auto-select valid difficulty if current is invalid
+    // We check against both VI and EN possible values to be safe, or just reset to first
+    // Simplified: just check if current value is in the new list (conceptually)
+    // For simplicity in this demo, just resetting to the first valid option usually works best UX
+    if (!newDifficulties.includes(metrics.difficulty) && !newDifficulties.some(d => DIFFICULTY_MAPPING[d] === DIFFICULTY_MAPPING[metrics.difficulty])) {
+       setMetrics(prev => ({ ...prev, difficulty: newDifficulties[0] }));
     }
   }, [metrics.competency]);
 
@@ -63,7 +121,7 @@ export const GeneratorModule: React.FC = () => {
 
   const addToQueue = () => {
     if (queue.length + quantity > 40) {
-      alert("Tối đa 40 câu hỏi trong hàng đợi (Max 40 items in queue).");
+      alert("Tối đa 40 câu hỏi trong hàng đợi.");
       return;
     }
     const newItems: BatchItem[] = Array.from({ length: quantity }, (_, i) => ({
@@ -77,21 +135,23 @@ export const GeneratorModule: React.FC = () => {
     setQueue(queue.filter(item => item.id !== id));
   };
 
-  const [results, setResults] = useState<QuestionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = async (useQueue: boolean) => {
+  // UNIFIED GENERATE FUNCTION
+  const handleUnifiedGenerate = async () => {
     setLoading(true);
     setError(null);
-    setResults([]);
+    setResults([]); // Clear previous results to avoid confusion
+    
     try {
-      if (useQueue) {
-        if (queue.length === 0) return;
+      if (queue.length > 0) {
+        // Mode 1: Generate entire Queue
         const data = await generateBatchQuestions(queue.map(i => i.metrics), language);
         setResults(data);
-        setQueue([]); 
+        setQueue([]); // Clear queue after success
       } else {
+        // Mode 2: Generate based on current config (Quantity)
         if (quantity === 1) {
           const data = await generateQuestion(metrics, language);
           setResults([data]);
@@ -113,6 +173,7 @@ export const GeneratorModule: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Configuration */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-200">
           <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2 border-b pb-4 border-slate-100 dark:border-slate-700">
             <span className="text-indigo-600 text-2xl">⚙️</span> {t('configTitle')}
@@ -136,8 +197,8 @@ export const GeneratorModule: React.FC = () => {
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('competency')}</label>
               <select className={inputClass} value={metrics.competency} onChange={e => setMetrics({...metrics, competency: e.target.value})}>
-                {Object.keys(COMPETENCY_MAP).map(code => (
-                  <option key={code} value={code}>{code} - {COMPETENCY_MAP[code].substring(0, 30)}...</option>
+                {Object.keys(COMPETENCY_MAP[language]).map(code => (
+                  <option key={code} value={code}>{code} - {COMPETENCY_MAP[language][code].substring(0, 30)}...</option>
                 ))}
               </select>
             </div>
@@ -215,24 +276,18 @@ export const GeneratorModule: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 flex gap-4">
-            <button
-              onClick={() => handleGenerate(false)}
-              disabled={loading}
-              className="flex-1 py-3 px-4 rounded-lg shadow-md font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            >
-              {loading ? t('generating') : t('generateSingle')}
-            </button>
+          <div className="mt-6">
             <button
               onClick={addToQueue}
               disabled={loading || queue.length >= 40}
-              className="flex-1 py-3 px-4 rounded-lg shadow-md font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:hover:bg-indigo-900 disabled:opacity-50 transition-colors"
+              className="w-full py-3 px-4 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors font-semibold"
             >
-              {t('addToBank')}
+              + {t('addToBank')}
             </button>
           </div>
         </div>
 
+        {/* Right Column: Queue */}
         <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-inner border border-slate-200 dark:border-slate-700 flex flex-col transition-colors duration-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-slate-800 dark:text-white">{t('queueTitle')} ({queue.length}/40)</h3>
@@ -256,15 +311,22 @@ export const GeneratorModule: React.FC = () => {
             ))}
             {queue.length === 0 && <div className="text-center text-slate-400 text-sm italic py-20 flex flex-col items-center justify-center h-full border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg">Queue is empty</div>}
           </div>
-
-          <button
-            onClick={() => handleGenerate(true)}
-            disabled={loading || queue.length === 0}
-            className="w-full py-3 px-4 rounded-lg shadow-md font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {t('generateBank')}
-          </button>
         </div>
+      </div>
+
+      {/* Primary Action Button (Unified) */}
+      <div className="sticky bottom-4 z-40">
+        <button
+          onClick={handleUnifiedGenerate}
+          disabled={loading}
+          className="w-full max-w-2xl mx-auto block py-4 px-6 rounded-2xl shadow-xl font-bold text-white text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.01]"
+        >
+          {loading ? t('generating') : (
+            queue.length > 0 
+              ? `${t('generateAction')} (${queue.length} items from Queue)` 
+              : `${t('generateAction')} (${quantity} items from Config)`
+          )}
+        </button>
       </div>
 
       {error && (
@@ -277,13 +339,13 @@ export const GeneratorModule: React.FC = () => {
 
       {results.length > 0 && (
         <>
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-8">
             <button 
               onClick={() => exportQuestionsToPDF(results, "BioMetric_AI_Generated_Bank")}
               className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow font-medium transition-colors flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              Export PDF
+              {t('exportDocx')}
             </button>
           </div>
           <div className="grid grid-cols-1 gap-6">

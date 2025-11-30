@@ -3,11 +3,9 @@ import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  // QUAN TRỌNG: Vite sử dụng import.meta.env, không phải process.env
-  const apiKey = import.meta.env.VITE_API_KEY;
-  
+  const apiKey = import.meta.env.VITE_API_KEY; 
   if (!apiKey) {
-    throw new Error("API Key is missing. Please check your .env file for VITE_API_KEY.");
+    throw new Error("API Key is missing. Please check your .env file.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -48,7 +46,6 @@ const retrieveContext = (metrics: MetricInput, limit: number = 3): QuestionData[
   return scoredItems.slice(0, limit).map(i => i.item);
 };
 
-// Single Question Generation
 export const generateQuestion = async (metrics: MetricInput, language: Language = 'vi'): Promise<QuestionData> => {
   const ai = getAIClient();
   const contextExamples = retrieveContext(metrics);
@@ -57,7 +54,7 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
     Generate a biology question with the following metrics:
     - Chapter: ${metrics.chapter}
     - Content: ${metrics.content}
-    - Difficulty: ${metrics.difficulty}
+    - Difficulty (Bloom 6 Levels): ${metrics.difficulty}
     - Competency: ${metrics.competency}
     - Question Type: ${metrics.type}
     - Setting: ${metrics.setting}
@@ -94,14 +91,11 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
   }
 };
 
-// Batch Question Generation (Up to 40)
 export const generateBatchQuestions = async (batch: MetricInput[], language: Language = 'vi'): Promise<QuestionData[]> => {
   const ai = getAIClient();
   
-  // Minimize context for batch to save tokens, or use general rules
   const promptText = `
     Generate a LIST of biology questions (JSON Array) based on these requirements:
-    
     ${JSON.stringify(batch.map((m, i) => ({
       index: i + 1,
       metrics: {
@@ -114,8 +108,8 @@ export const generateBatchQuestions = async (batch: MetricInput[], language: Lan
         custom: m.customPrompt
       }
     })))}
-
     IMPORTANT: Return an ARRAY of ${batch.length} QuestionData objects.
+    ENSURE Difficulty follows Bloom's 6 levels.
   `;
 
   try {
@@ -147,7 +141,7 @@ export const extractMetrics = async (
   const ai = getAIClient();
 
   const prompt = `
-    Analyze the following input. If it contains multiple questions, return a JSON Array. If single, return JSON Object.
+    Analyze the following input using Bloom's Taxonomy (6 Levels). If it contains multiple questions, return a JSON Array. If single, return JSON Object.
     
     Input:
     Question(s): ${questionText}
@@ -175,6 +169,7 @@ export const extractMetrics = async (
   }
 };
 
+// ... keep generateIRTInsight as is
 export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: Language = 'vi'): Promise<string> => {
   const ai = getAIClient();
   const itemsSummary = analysis.items.map(i => ({
@@ -201,7 +196,7 @@ export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: 
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: { temperature: 0.5 },
     });

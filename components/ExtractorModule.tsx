@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { extractMetrics } from '../services/geminiService';
 import { exportQuestionsToPDF } from '../services/exportService';
 import { QuestionData } from '../types';
@@ -8,12 +8,24 @@ import { useAppContext } from '../contexts/AppContext';
 
 export const ExtractorModule: React.FC = () => {
   const { t, language } = useAppContext();
-  const [questionText, setQuestionText] = useState('');
-  const [optionsText, setOptionsText] = useState('');
-  const [answerKey, setAnswerKey] = useState('');
-  const [customPrompt, setCustomPrompt] = useState('');
   
-  const [results, setResults] = useState<Partial<QuestionData>[]>([]);
+  // State Initialization with Persistence
+  const [questionText, setQuestionText] = useState(() => localStorage.getItem('biometric_ext_question') || '');
+  const [optionsText, setOptionsText] = useState(() => localStorage.getItem('biometric_ext_options') || '');
+  const [answerKey, setAnswerKey] = useState(() => localStorage.getItem('biometric_ext_answer') || '');
+  const [customPrompt, setCustomPrompt] = useState(() => localStorage.getItem('biometric_ext_prompt') || '');
+  const [results, setResults] = useState<Partial<QuestionData>[]>(() => {
+    const saved = localStorage.getItem('biometric_ext_results');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Persist State
+  useEffect(() => { localStorage.setItem('biometric_ext_question', questionText); }, [questionText]);
+  useEffect(() => { localStorage.setItem('biometric_ext_options', optionsText); }, [optionsText]);
+  useEffect(() => { localStorage.setItem('biometric_ext_answer', answerKey); }, [answerKey]);
+  useEffect(() => { localStorage.setItem('biometric_ext_prompt', customPrompt); }, [customPrompt]);
+  useEffect(() => { localStorage.setItem('biometric_ext_results', JSON.stringify(results)); }, [results]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,7 +137,7 @@ export const ExtractorModule: React.FC = () => {
               className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow font-medium transition-colors flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              Export PDF
+              {t('exportDocx')}
             </button>
           </div>
           <div className="space-y-6">

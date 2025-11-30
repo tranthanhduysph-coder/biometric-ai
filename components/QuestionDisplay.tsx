@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { QuestionData } from '../types';
 
@@ -8,6 +7,21 @@ interface Props {
 }
 
 export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
+  // Helper for Bloom Level Colors
+  const getBadgeStyle = (diff: string | undefined) => {
+    if (!diff) return 'bg-gray-100 text-gray-800';
+    const d = diff.toLowerCase();
+    
+    if (d.includes('nhớ') || d.includes('remember')) return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+    if (d.includes('hiểu') || d.includes('understand')) return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800';
+    if (d.includes('vận dụng') || d.includes('apply')) return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800';
+    if (d.includes('phân tích') || d.includes('analyze')) return 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800';
+    if (d.includes('đánh giá') || d.includes('evaluate')) return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800';
+    if (d.includes('sáng tạo') || d.includes('create')) return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800';
+    
+    return 'bg-gray-100 text-gray-800';
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in-up">
       <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-800 dark:to-indigo-900 px-6 py-4">
@@ -20,11 +34,7 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
         {/* Metrics Badge Row */}
         <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
           {data.Difficulty && (
-            <span className={`px-2 py-1 rounded border ${
-              data.Difficulty.includes('Nhận biết') || data.Difficulty.includes('Knowing') ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300' :
-              data.Difficulty.includes('Thông hiểu') || data.Difficulty.includes('Understanding') ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' :
-              'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-300'
-            }`}>
+            <span className={`px-2 py-1 rounded border ${getBadgeStyle(data.Difficulty)}`}>
               {data.Difficulty}
             </span>
           )}
@@ -151,7 +161,7 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">{sub.id}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{sub.statement}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className="px-2 py-0.5 rounded text-xs border bg-slate-100 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300">{sub.difficulty}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs border ${getBadgeStyle(sub.difficulty)}`}>{sub.difficulty}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{sub.competency}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-indigo-600 dark:text-indigo-400">{sub.answer}</td>
