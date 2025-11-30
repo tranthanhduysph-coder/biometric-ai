@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { generateQuestion, generateBatchQuestions } from '../services/geminiService';
 import { exportQuestionsToPDF } from '../services/exportService';
-import { QuestionData, MetricInput, COMPETENCY_MAP, BatchItem } from '../types';
+import { QuestionData, MetricInput, BatchItem } from '../types'; // Removed COMPETENCY_MAP from here
 import { LoadingSpinner } from './LoadingSpinner';
 import { QuestionDisplay } from './QuestionDisplay';
-import { CURRICULUM_STRUCTURE, DIFFICULTY_MAPPING, TYPE_MAPPING, SETTING_MAPPING } from '../constants';
+// Added COMPETENCY_MAP to here
+import { CURRICULUM_STRUCTURE, DIFFICULTY_MAPPING, TYPE_MAPPING, SETTING_MAPPING, COMPETENCY_MAP } from '../constants';
 import { useAppContext } from '../contexts/AppContext';
 
 export const GeneratorModule: React.FC = () => {
@@ -16,10 +17,13 @@ export const GeneratorModule: React.FC = () => {
   // 2. State with Persistence (Initialize from localStorage if available)
   const [metrics, setMetrics] = useState<MetricInput>(() => {
     const saved = localStorage.getItem('biometric_gen_metrics');
+    // Ensure default difficulty matches Bloom levels
+    const defaultDiff = language === 'vi' ? 'Hiểu' : 'Understand';
+    
     return saved ? JSON.parse(saved) : {
       chapter: chapters[0],
       content: CURRICULUM_STRUCTURE[language][chapters[0]][0],
-      difficulty: 'Hiểu',
+      difficulty: defaultDiff,
       competency: 'NT2',
       type: 'Multiple choices',
       setting: 'Lý thuyết',
@@ -57,7 +61,7 @@ export const GeneratorModule: React.FC = () => {
 
   // 4. Effects for Localization/Logic
   const [availableContents, setAvailableContents] = useState<string[]>([]);
-  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>(['Ghi nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo']);
+  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // When Language changes, we must reset selections to avoid mismatch
@@ -90,26 +94,26 @@ export const GeneratorModule: React.FC = () => {
     const comp = metrics.competency;
     let newDifficulties: string[] = [];
     
-    // Logic mapping mapping Bloom levels based on Competency
-    if (comp === 'NT1') newDifficulties = ['Ghi nhớ', 'Hiểu'];
-    else if (['NT2', 'NT3'].includes(comp)) newDifficulties = ['Hiểu', 'Vận dụng'];
-    else if (['NT4', 'NT5', 'NT6'].includes(comp)) newDifficulties = ['Vận dụng', 'Phân tích'];
-    else if (comp.startsWith('TH')) newDifficulties = ['Phân tích', 'Đánh giá'];
-    else if (comp.startsWith('VD')) newDifficulties = ['Đánh giá', 'Sáng tạo'];
-    else newDifficulties = ['Ghi nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo'];
+    // Logic mapping Bloom levels based on Competency
+    // We define the localized strings
+    const levelsVi = ['Ghi nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo'];
+    const levelsEn = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
+    const levels = language === 'vi' ? levelsVi : levelsEn;
 
-    // Map to English if needed, but keeping internal values consistent for now simplifies logic
-    // The Constants file handles translation display
+    if (comp === 'NT1') newDifficulties = [levels[0], levels[1]];
+    else if (['NT2', 'NT3'].includes(comp)) newDifficulties = [levels[1], levels[2]];
+    else if (['NT4', 'NT5', 'NT6'].includes(comp)) newDifficulties = [levels[2], levels[3]];
+    else if (comp.startsWith('TH')) newDifficulties = [levels[3], levels[4]];
+    else if (comp.startsWith('VD')) newDifficulties = [levels[4], levels[5]];
+    else newDifficulties = levels;
+
     setAvailableDifficulties(newDifficulties);
     
     // Auto-select valid difficulty if current is invalid
-    // We check against both VI and EN possible values to be safe, or just reset to first
-    // Simplified: just check if current value is in the new list (conceptually)
-    // For simplicity in this demo, just resetting to the first valid option usually works best UX
-    if (!newDifficulties.includes(metrics.difficulty) && !newDifficulties.some(d => DIFFICULTY_MAPPING[d] === DIFFICULTY_MAPPING[metrics.difficulty])) {
+    if (!newDifficulties.includes(metrics.difficulty)) {
        setMetrics(prev => ({ ...prev, difficulty: newDifficulties[0] }));
     }
-  }, [metrics.competency]);
+  }, [metrics.competency, language]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

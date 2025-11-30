@@ -18,7 +18,7 @@ export interface ChartConfig {
   yLabel: string;
 }
 
-// Cập nhật thang đo Bloom 6 mức độ
+// Thang đo Bloom 6 mức độ
 export type BloomDifficulty = 
   | "Ghi nhớ" | "Hiểu" | "Vận dụng" | "Phân tích" | "Đánh giá" | "Sáng tạo"
   | "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create";
@@ -53,7 +53,7 @@ export interface MetricInput {
   customPrompt?: string; 
   hasChart?: boolean; 
   hasImage?: boolean; 
-  imageFile?: File | null; // Note: File objects cannot be saved to localStorage easily
+  imageFile?: File | null;
 }
 
 export interface BatchItem {
