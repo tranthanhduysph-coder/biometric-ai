@@ -1,13 +1,13 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types';
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  const apiKey = import.meta.env.VITE_API_KEY; 
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your .env file.");
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing. Please check your environment variables.");
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 const fileToGenerativePart = async (file: File) => {
@@ -46,20 +46,24 @@ const retrieveContext = (metrics: MetricInput, limit: number = 3): QuestionData[
   return scoredItems.slice(0, limit).map(i => i.item);
 };
 
+// Single Question Generation
 export const generateQuestion = async (metrics: MetricInput, language: Language = 'vi'): Promise<QuestionData> => {
   const ai = getAIClient();
   const contextExamples = retrieveContext(metrics);
+
+  // Activate Search Tool only if user requests an image
+  const tools = metrics.hasImage && !metrics.imageFile ? [{ googleSearch: {} }] : undefined;
 
   const promptText = `
     Generate a biology question with the following metrics:
     - Chapter: ${metrics.chapter}
     - Content: ${metrics.content}
-    - Difficulty (Bloom 6 Levels): ${metrics.difficulty}
+    - Difficulty: ${metrics.difficulty}
     - Competency: ${metrics.competency}
     - Question Type: ${metrics.type}
     - Setting: ${metrics.setting}
-    ${metrics.hasChart ? '- GENERATE MOCK CHART' : ''}
-    ${metrics.hasImage && !metrics.imageFile ? '- DESCRIBE IMAGE & KEYWORDS' : ''}
+    ${metrics.hasChart ? '- GENERATE MOCK CHART data.' : ''}
+    ${metrics.hasImage && !metrics.imageFile ? '- IMPORTANT: Use Google Search to find a REAL URL for a relevant illustration image. Return it in "imageUrl" and the source in "imageSource".' : '- DO NOT generate any image data or description.'}
     ${metrics.imageFile ? '- ANALYZE UPLOADED IMAGE' : ''}
     ${metrics.customPrompt ? `- CUSTOM: ${metrics.customPrompt}` : ''}
 
@@ -74,28 +78,34 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: [{ role: 'user', parts: contentParts }],
       config: {
+        tools: tools,
         systemInstruction: getSystemInstructionGenerator(language),
         temperature: 0.7,
-        responseMimeType: "application/json",
+        responseMimeType: tools ? undefined : "application/json", // MIME type not compatible with tools in some cases, but usually okay. If tools used, output might be text that needs parsing, but flash usually adheres to JSON instruction.
       },
     });
-
+    
+    // If using tools, the response might contain grounding metadata, we need to extract text and parse.
+    // However, since we asked for JSON in system instruction, Flash usually wraps it in ```json blocks even with tools.
     const jsonStr = cleanJson(response.text || "{}");
     return JSON.parse(jsonStr) as QuestionData;
   } catch (error) {
     console.error("Error generating question:", error);
-    throw new Error("Failed to generate question.");
+    throw new Error("Failed to generate question. Please try again.");
   }
 };
 
+// Batch Question Generation (Up to 40)
 export const generateBatchQuestions = async (batch: MetricInput[], language: Language = 'vi'): Promise<QuestionData[]> => {
   const ai = getAIClient();
   
+  // Disable image search for batch to prevent rate limits and speed up generation
   const promptText = `
     Generate a LIST of biology questions (JSON Array) based on these requirements:
+    
     ${JSON.stringify(batch.map((m, i) => ({
       index: i + 1,
       metrics: {
@@ -108,13 +118,14 @@ export const generateBatchQuestions = async (batch: MetricInput[], language: Lan
         custom: m.customPrompt
       }
     })))}
+
     IMPORTANT: Return an ARRAY of ${batch.length} QuestionData objects.
-    ENSURE Difficulty follows Bloom's 6 levels.
+    DO NOT GENERATE ANY IMAGES OR IMAGE URLS FOR BATCH REQUESTS.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: [{ role: 'user', parts: [{ text: promptText }] }],
       config: {
         systemInstruction: getSystemInstructionGenerator(language),
@@ -141,7 +152,7 @@ export const extractMetrics = async (
   const ai = getAIClient();
 
   const prompt = `
-    Analyze the following input using Bloom's Taxonomy (6 Levels). If it contains multiple questions, return a JSON Array. If single, return JSON Object.
+    Analyze the following input. If it contains multiple questions, return a JSON Array. If single, return JSON Object.
     
     Input:
     Question(s): ${questionText}
@@ -152,7 +163,7 @@ export const extractMetrics = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: getSystemInstructionExtractor(language),
@@ -169,7 +180,6 @@ export const extractMetrics = async (
   }
 };
 
-// ... keep generateIRTInsight as is
 export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: Language = 'vi'): Promise<string> => {
   const ai = getAIClient();
   const itemsSummary = analysis.items.map(i => ({
