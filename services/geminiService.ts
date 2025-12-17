@@ -4,10 +4,10 @@ import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  if (!process.env.API_KEY) {
+  if (!process.env.VITE_API_KEY) {
     throw new Error("API Key is missing. Please check your environment variables.");
   }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey: process.env.VITE_API_KEY });
 };
 
 const fileToGenerativePart = async (file: File) => {
