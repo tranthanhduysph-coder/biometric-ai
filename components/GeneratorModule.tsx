@@ -2,41 +2,33 @@
 import React, { useState, useEffect } from 'react';
 import { generateQuestion, generateBatchQuestions } from '../services/geminiService';
 import { exportQuestionsToPDF } from '../services/exportService';
-import { QuestionData, MetricInput, BatchItem, COMPETENCY_MAP } from '../types';
+import { BatchItem, COMPETENCY_MAP } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 import { QuestionDisplay } from './QuestionDisplay';
 import { CURRICULUM_STRUCTURE, DIFFICULTY_MAPPING, TYPE_MAPPING, SETTING_MAPPING } from '../constants';
 import { useAppContext } from '../contexts/AppContext';
+import { useSession } from '../contexts/SessionContext';
 
 export const GeneratorModule: React.FC = () => {
   const { t, language } = useAppContext();
+  const { generator, setGenerator } = useSession();
+  
+  const { metrics, quantity, queue, results } = generator;
   const chapters = Object.keys(CURRICULUM_STRUCTURE);
   
-  const [metrics, setMetrics] = useState<MetricInput>({
-    chapter: chapters[0],
-    content: CURRICULUM_STRUCTURE[chapters[0]][0],
-    difficulty: 'Thông hiểu',
-    competency: 'NT2',
-    type: 'Multiple choices',
-    setting: 'Lý thuyết',
-    hasChart: false,
-    hasImage: false,
-    customPrompt: '',
-    imageFile: null
-  });
-
-  const [quantity, setQuantity] = useState<number>(1);
-  const [queue, setQueue] = useState<BatchItem[]>([]);
-  
-  const [availableContents, setAvailableContents] = useState<string[]>(CURRICULUM_STRUCTURE[chapters[0]]);
+  const [availableContents, setAvailableContents] = useState<string[]>([]);
   const [availableDifficulties, setAvailableDifficulties] = useState<string[]>(['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao']);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // Sync available contents/difficulties based on loaded metrics
   useEffect(() => {
     const contents = CURRICULUM_STRUCTURE[metrics.chapter] || [];
     setAvailableContents(contents);
-    if (contents.length > 0) {
-      setMetrics(prev => ({ ...prev, content: contents[0] }));
+    
+    // Only reset content if the current metric content isn't valid for the chapter 
+    // (prevents overwriting saved session data on mount)
+    if (contents.length > 0 && !contents.includes(metrics.content)) {
+      updateMetrics({ content: contents[0] });
     }
   }, [metrics.chapter]);
 
@@ -50,14 +42,22 @@ export const GeneratorModule: React.FC = () => {
 
     setAvailableDifficulties(newDifficulties);
     if (!newDifficulties.includes(metrics.difficulty)) {
-      setMetrics(prev => ({ ...prev, difficulty: newDifficulties[0] }));
+      updateMetrics({ difficulty: newDifficulties[0] });
     }
   }, [metrics.competency]);
+
+  // Helper to update generator state partially
+  const updateMetrics = (partialMetrics: Partial<typeof metrics>) => {
+    setGenerator(prev => ({
+      ...prev,
+      metrics: { ...prev.metrics, ...partialMetrics }
+    }));
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setMetrics(prev => ({ ...prev, imageFile: file, hasImage: true }));
+      updateMetrics({ imageFile: file, hasImage: true });
       setImagePreview(URL.createObjectURL(file));
     }
   };
@@ -71,35 +71,37 @@ export const GeneratorModule: React.FC = () => {
       id: `${Date.now()}-${i}`,
       metrics: { ...metrics }
     }));
-    setQueue([...queue, ...newItems]);
+    setGenerator(prev => ({ ...prev, queue: [...prev.queue, ...newItems] }));
   };
 
   const removeFromQueue = (id: string) => {
-    setQueue(queue.filter(item => item.id !== id));
+    setGenerator(prev => ({ ...prev, queue: prev.queue.filter(item => item.id !== id) }));
+  };
+  
+  const setQueue = (newQueue: BatchItem[]) => {
+    setGenerator(prev => ({ ...prev, queue: newQueue }));
   };
 
-  const [results, setResults] = useState<QuestionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async (useQueue: boolean) => {
     setLoading(true);
     setError(null);
-    setResults([]);
+    setGenerator(prev => ({ ...prev, results: [] }));
     try {
       if (useQueue) {
         if (queue.length === 0) return;
         const data = await generateBatchQuestions(queue.map(i => i.metrics), language);
-        setResults(data);
-        setQueue([]); 
+        setGenerator(prev => ({ ...prev, results: data, queue: [] }));
       } else {
         if (quantity === 1) {
           const data = await generateQuestion(metrics, language);
-          setResults([data]);
+          setGenerator(prev => ({ ...prev, results: [data] }));
         } else {
           const batch = Array(quantity).fill(metrics);
           const data = await generateBatchQuestions(batch, language);
-          setResults(data);
+          setGenerator(prev => ({ ...prev, results: data }));
         }
       }
     } catch (err) {
@@ -122,21 +124,21 @@ export const GeneratorModule: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('chapter')}</label>
-              <select className={inputClass} value={metrics.chapter} onChange={e => setMetrics({...metrics, chapter: e.target.value})}>
+              <select className={inputClass} value={metrics.chapter} onChange={e => updateMetrics({ chapter: e.target.value })}>
                 {chapters.map(chap => <option key={chap} value={chap}>{chap}</option>)}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('content')}</label>
-              <select className={inputClass} value={metrics.content} onChange={e => setMetrics({...metrics, content: e.target.value})}>
+              <select className={inputClass} value={metrics.content} onChange={e => updateMetrics({ content: e.target.value })}>
                 {availableContents.map(cont => <option key={cont} value={cont}>{cont}</option>)}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('competency')}</label>
-              <select className={inputClass} value={metrics.competency} onChange={e => setMetrics({...metrics, competency: e.target.value})}>
+              <select className={inputClass} value={metrics.competency} onChange={e => updateMetrics({ competency: e.target.value })}>
                 {Object.keys(COMPETENCY_MAP).map(code => (
                   <option key={code} value={code}>{code} - {COMPETENCY_MAP[code].substring(0, 30)}...</option>
                 ))}
@@ -145,7 +147,7 @@ export const GeneratorModule: React.FC = () => {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('difficulty')}</label>
-              <select className={`${inputClass} bg-slate-50 dark:bg-slate-600`} value={metrics.difficulty} onChange={e => setMetrics({...metrics, difficulty: e.target.value})}>
+              <select className={`${inputClass} bg-slate-50 dark:bg-slate-600`} value={metrics.difficulty} onChange={e => updateMetrics({ difficulty: e.target.value })}>
                 {availableDifficulties.map(diff => (
                   <option key={diff} value={diff}>{t(DIFFICULTY_MAPPING[diff] || diff)}</option>
                 ))}
@@ -154,7 +156,7 @@ export const GeneratorModule: React.FC = () => {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('qType')}</label>
-              <select className={inputClass} value={metrics.type} onChange={e => setMetrics({...metrics, type: e.target.value})}>
+              <select className={inputClass} value={metrics.type} onChange={e => updateMetrics({ type: e.target.value })}>
                 {Object.entries(TYPE_MAPPING).map(([val, key]) => (
                   <option key={val} value={val}>{t(key)}</option>
                 ))}
@@ -163,7 +165,7 @@ export const GeneratorModule: React.FC = () => {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">{t('context')}</label>
-              <select className={inputClass} value={metrics.setting} onChange={e => setMetrics({...metrics, setting: e.target.value})}>
+              <select className={inputClass} value={metrics.setting} onChange={e => updateMetrics({ setting: e.target.value })}>
                 {Object.entries(SETTING_MAPPING).map(([val, key]) => (
                   <option key={val} value={val}>{t(key)}</option>
                 ))}
@@ -177,7 +179,7 @@ export const GeneratorModule: React.FC = () => {
                 min="1" 
                 max="5" 
                 value={quantity} 
-                onChange={e => setQuantity(Math.min(5, Math.max(1, parseInt(e.target.value))))}
+                onChange={e => setGenerator(prev => ({ ...prev, quantity: Math.min(5, Math.max(1, parseInt(e.target.value))) }))}
                 className={inputClass}
               />
             </div>
@@ -188,7 +190,7 @@ export const GeneratorModule: React.FC = () => {
                 className={inputClass}
                 rows={2}
                 value={metrics.customPrompt}
-                onChange={e => setMetrics({...metrics, customPrompt: e.target.value})}
+                onChange={e => updateMetrics({ customPrompt: e.target.value })}
               />
             </div>
 
@@ -204,11 +206,11 @@ export const GeneratorModule: React.FC = () => {
                 </div>
                 <div className="flex-1 space-y-2">
                   <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" checked={metrics.hasImage && !metrics.imageFile} onChange={e => setMetrics({...metrics, hasImage: e.target.checked})} disabled={!!metrics.imageFile} className="mr-2 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-slate-600" />
+                    <input type="checkbox" checked={metrics.hasImage && !metrics.imageFile} onChange={e => updateMetrics({ hasImage: e.target.checked })} disabled={!!metrics.imageFile} className="mr-2 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-slate-600" />
                     <span className="text-sm text-slate-700 dark:text-slate-300">{t('autoImg')}</span>
                   </label>
                   <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" checked={metrics.hasChart} onChange={e => setMetrics({...metrics, hasChart: e.target.checked})} className="mr-2 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-slate-600" />
+                    <input type="checkbox" checked={metrics.hasChart} onChange={e => updateMetrics({ hasChart: e.target.checked })} className="mr-2 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-slate-600" />
                     <span className="text-sm text-slate-700 dark:text-slate-300">{t('mockChart')}</span>
                   </label>
                 </div>
@@ -297,3 +299,4 @@ export const GeneratorModule: React.FC = () => {
     </div>
   );
 };
+
