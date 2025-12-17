@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { QuestionData } from '../types';
 
 interface Props {
@@ -6,24 +7,26 @@ interface Props {
   title: string;
 }
 
+// Helper to safely render content that might be an object or string
+const safeRender = (content: any): string => {
+  if (!content) return "";
+  if (typeof content === 'string') return content;
+  if (typeof content === 'number') return String(content);
+  if (Array.isArray(content)) return content.join(', ');
+  if (typeof content === 'object') {
+    // Handle {a: "Option A", b: "Option B"} case
+    return Object.entries(content)
+      .map(([k, v]) => `${k}. ${v}`)
+      .join('\n');
+  }
+  return String(content);
+};
+
 export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
-  // Helper for Bloom Level Colors
-  const getBadgeStyle = (diff: string | undefined) => {
-    if (!diff) return 'bg-gray-100 text-gray-800';
-    const d = diff.toLowerCase();
-    
-    if (d.includes('nhớ') || d.includes('remember')) return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-    if (d.includes('hiểu') || d.includes('understand')) return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800';
-    if (d.includes('vận dụng') || d.includes('apply')) return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800';
-    if (d.includes('phân tích') || d.includes('analyze')) return 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800';
-    if (d.includes('đánh giá') || d.includes('evaluate')) return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800';
-    if (d.includes('sáng tạo') || d.includes('create')) return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800';
-    
-    return 'bg-gray-100 text-gray-800';
-  };
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in-up">
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in-up transition-all duration-300">
       <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-800 dark:to-indigo-900 px-6 py-4">
         <h3 className="text-white font-semibold text-lg flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -34,13 +37,17 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
         {/* Metrics Badge Row */}
         <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
           {data.Difficulty && (
-            <span className={`px-2 py-1 rounded border ${getBadgeStyle(data.Difficulty)}`}>
-              {data.Difficulty}
+            <span className={`px-2 py-1 rounded border ${
+              data.Difficulty.includes('Nhận biết') || data.Difficulty.includes('Knowing') ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300' :
+              data.Difficulty.includes('Thông hiểu') || data.Difficulty.includes('Understanding') ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' :
+              'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-300'
+            }`}>
+              {safeRender(data.Difficulty)}
             </span>
           )}
-          {data.Chapter && <span className="px-2 py-1 rounded bg-slate-100 border border-slate-200 dark:bg-slate-700 dark:border-slate-600">{data.Chapter}</span>}
-          {data["Type of Question"] && <span className="px-2 py-1 rounded bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300">{data["Type of Question"]}</span>}
-          {data.Setting && <span className="px-2 py-1 rounded bg-orange-50 border border-orange-200 text-orange-700 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">{data.Setting}</span>}
+          {data.Chapter && <span className="px-2 py-1 rounded bg-slate-100 border border-slate-200 dark:bg-slate-700 dark:border-slate-600">{safeRender(data.Chapter)}</span>}
+          {data["Type of Question"] && <span className="px-2 py-1 rounded bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300">{safeRender(data["Type of Question"])}</span>}
+          {data.Setting && <span className="px-2 py-1 rounded bg-orange-50 border border-orange-200 text-orange-700 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">{safeRender(data.Setting)}</span>}
         </div>
 
         {/* Question Body */}
@@ -48,23 +55,27 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
           <div className="prose prose-slate dark:prose-invert max-w-none">
             <h4 className="text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold mb-2">CONTENT</h4>
             <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-medium whitespace-pre-wrap leading-relaxed">
-              {data.Question}
+              {safeRender(data.Question)}
             </div>
           </div>
         )}
 
-        {/* Render Auto-Found Image */}
+        {/* Render Auto-Found Image with Anti-Layout Shift */}
         {data.imageKeywords && (
           <div className="my-4 border dark:border-slate-700 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 flex flex-col items-center">
-             <img 
-               src={`https://image.pollinations.ai/prompt/${encodeURIComponent(data.imageKeywords)}`} 
-               alt={data.imageDescription || "Biological Illustration"}
-               className="w-full max-h-96 object-contain"
-               loading="lazy"
-             />
+             <div className={`relative w-full flex justify-center items-center transition-all duration-300 ${!imgLoaded ? 'min-h-[250px] bg-slate-200 dark:bg-slate-800 animate-pulse' : ''}`}>
+               <img 
+                 src={`https://image.pollinations.ai/prompt/${encodeURIComponent(safeRender(data.imageKeywords))}`} 
+                 alt={data.imageDescription || "Biological Illustration"}
+                 className={`w-full max-h-96 object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                 loading="lazy"
+                 onLoad={() => setImgLoaded(true)}
+               />
+               {!imgLoaded && <span className="absolute text-slate-400 text-sm font-medium">Generating illustration...</span>}
+             </div>
              <div className="p-3 bg-white dark:bg-slate-800 w-full border-t dark:border-slate-700 text-center">
-               <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">Generated Illustration: "{data.imageKeywords}"</p>
-               {data.imageDescription && <p className="text-sm text-slate-700 dark:text-slate-300">{data.imageDescription}</p>}
+               <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">Generated Illustration: "{safeRender(data.imageKeywords)}"</p>
+               {data.imageDescription && <p className="text-sm text-slate-700 dark:text-slate-300">{safeRender(data.imageDescription)}</p>}
              </div>
           </div>
         )}
@@ -130,12 +141,12 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
           </div>
         )}
 
-        {/* Options */}
+        {/* Options - SAFELY RENDERED */}
         {data.options && !data.sub_metrics && (
           <div>
             <h4 className="text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold mb-2">OPTIONS</h4>
             <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-mono text-sm">
-              {data.options}
+              {safeRender(data.options)}
             </div>
           </div>
         )}
@@ -161,7 +172,7 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">{sub.id}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{sub.statement}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs border ${getBadgeStyle(sub.difficulty)}`}>{sub.difficulty}</span>
+                        <span className="px-2 py-0.5 rounded text-xs border bg-slate-100 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300">{sub.difficulty}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{sub.competency}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-indigo-600 dark:text-indigo-400">{sub.answer}</td>
@@ -180,13 +191,17 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
               {data.Answer && (
                 <div>
                   <h4 className="text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-2">KEY</h4>
-                  <div className="text-slate-800 dark:text-slate-200 font-semibold bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 rounded">{data.Answer}</div>
+                  <div className="text-slate-800 dark:text-slate-200 font-semibold bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 rounded">
+                    {safeRender(data.Answer)}
+                  </div>
                 </div>
               )}
               {data.Explaination && (
                 <div className={!data.Answer ? "md:col-span-2" : ""}>
                   <h4 className="text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400 font-bold mb-2">EXPLANATION</h4>
-                  <div className="text-slate-700 dark:text-slate-300 text-sm bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 p-3 rounded">{data.Explaination}</div>
+                  <div className="text-slate-700 dark:text-slate-300 text-sm bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 p-3 rounded">
+                    {safeRender(data.Explaination)}
+                  </div>
                 </div>
               )}
             </div>
@@ -199,10 +214,10 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
             Pedagogical Metrics
           </h4>
           <div className="grid grid-cols-1 gap-2">
-            {data["Learning Objective"] && <p><span className="font-semibold w-24 inline-block">Objective:</span> {data["Learning Objective"]}</p>}
-            {data.Competency && <p><span className="font-semibold w-24 inline-block">Competency:</span> {data.Competency}</p>}
-            {data.Content && <p><span className="font-semibold w-24 inline-block">Content:</span> {data.Content}</p>}
-            {data.Setting && <p><span className="font-semibold w-24 inline-block">Context:</span> {data.Setting}</p>}
+            {data["Learning Objective"] && <p><span className="font-semibold w-24 inline-block">Objective:</span> {safeRender(data["Learning Objective"])}</p>}
+            {data.Competency && <p><span className="font-semibold w-24 inline-block">Competency:</span> {safeRender(data.Competency)}</p>}
+            {data.Content && <p><span className="font-semibold w-24 inline-block">Content:</span> {safeRender(data.Content)}</p>}
+            {data.Setting && <p><span className="font-semibold w-24 inline-block">Context:</span> {safeRender(data.Setting)}</p>}
           </div>
         </div>
       </div>
