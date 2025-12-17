@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { performIRTAnalysis } from '../services/irtService';
 import { generateIRTInsight } from '../services/geminiService';
@@ -5,54 +6,37 @@ import { exportIRTToCSV } from '../services/exportService';
 import { IRTAnalysisResult } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 import { useAppContext } from '../contexts/AppContext';
+import { useSession } from '../contexts/SessionContext';
 
 export const IRTModule: React.FC = () => {
   const { t, language } = useAppContext();
-  const [resultsCsv, setResultsCsv] = useState<string>(`StudentID,Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10
-S001,1,1,1,1,1,0,1,0,0,0
-S002,1,1,1,1,0,0,0,0,0,0
-S003,1,1,1,1,1,1,1,1,0,1
-S004,0,1,0,0,0,0,0,0,0,0
-S005,1,1,1,1,1,1,0,1,0,0
-S006,1,1,0,1,0,0,0,0,0,0
-S007,1,1,1,1,1,1,1,1,1,1
-S008,1,0,0,0,0,0,0,0,0,0
-S009,1,1,1,1,0,1,0,0,0,0
-S010,1,1,1,0,1,0,0,0,0,0`);
+  const { irt, setIrt } = useSession();
+  const { resultsCsv, metadataCsv, analysis, aiReport } = irt;
 
-  const [metadataCsv, setMetadataCsv] = useState<string>(`ItemID,Topic,DifficultyLevel,Competency
-Q1,Cell Structure,Nhận biết,NT1
-Q2,Cell Structure,Nhận biết,NT1
-Q3,Metabolism,Thông hiểu,NT2
-Q4,Metabolism,Thông hiểu,NT2
-Q5,Genetics,Thông hiểu,NT2
-Q6,Genetics,Vận dụng,VD1
-Q7,Evolution,Vận dụng,VD1
-Q8,Evolution,Vận dụng,VD2
-Q9,Ecology,Vận dụng cao,TH2
-Q10,Ecology,Vận dụng cao,TH4`);
-
-  const [analysis, setAnalysis] = useState<IRTAnalysisResult | null>(null);
-  const [aiReport, setAiReport] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
-    setAnalysis(null);
-    setAiReport("");
+    setIrt(prev => ({ ...prev, analysis: null, aiReport: "" }));
 
     try {
       const result = performIRTAnalysis(resultsCsv, metadataCsv);
-      setAnalysis(result);
+      // Intermediate update
+      setIrt(prev => ({ ...prev, analysis: result }));
+      
       const insight = await generateIRTInsight(result, language);
-      setAiReport(insight);
+      setIrt(prev => ({ ...prev, analysis: result, aiReport: insight }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateIrt = (field: string, value: string) => {
+    setIrt(prev => ({ ...prev, [field]: value }));
   };
 
   const textareaClass = "w-full h-40 rounded-md border-gray-300 dark:border-slate-600 shadow-sm focus:border-pink-500 focus:ring-pink-500 text-xs font-mono p-2 border bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200";
@@ -72,7 +56,7 @@ Q10,Ecology,Vận dụng cao,TH4`);
             <textarea
               className={textareaClass}
               value={resultsCsv}
-              onChange={e => setResultsCsv(e.target.value)}
+              onChange={e => updateIrt('resultsCsv', e.target.value)}
             />
           </div>
           <div>
@@ -82,7 +66,7 @@ Q10,Ecology,Vận dụng cao,TH4`);
             <textarea
               className={textareaClass}
               value={metadataCsv}
-              onChange={e => setMetadataCsv(e.target.value)}
+              onChange={e => updateIrt('metadataCsv', e.target.value)}
             />
           </div>
         </div>
