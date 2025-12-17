@@ -1,31 +1,19 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { extractMetrics } from '../services/geminiService';
 import { exportQuestionsToPDF } from '../services/exportService';
 import { QuestionData } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 import { QuestionDisplay } from './QuestionDisplay';
 import { useAppContext } from '../contexts/AppContext';
+import { useSession } from '../contexts/SessionContext';
 
 export const ExtractorModule: React.FC = () => {
   const { t, language } = useAppContext();
+  const { extractor, setExtractor } = useSession();
   
-  // State Initialization with Persistence
-  const [questionText, setQuestionText] = useState(() => localStorage.getItem('biometric_ext_question') || '');
-  const [optionsText, setOptionsText] = useState(() => localStorage.getItem('biometric_ext_options') || '');
-  const [answerKey, setAnswerKey] = useState(() => localStorage.getItem('biometric_ext_answer') || '');
-  const [customPrompt, setCustomPrompt] = useState(() => localStorage.getItem('biometric_ext_prompt') || '');
-  const [results, setResults] = useState<Partial<QuestionData>[]>(() => {
-    const saved = localStorage.getItem('biometric_ext_results');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Persist State
-  useEffect(() => { localStorage.setItem('biometric_ext_question', questionText); }, [questionText]);
-  useEffect(() => { localStorage.setItem('biometric_ext_options', optionsText); }, [optionsText]);
-  useEffect(() => { localStorage.setItem('biometric_ext_answer', answerKey); }, [answerKey]);
-  useEffect(() => { localStorage.setItem('biometric_ext_prompt', customPrompt); }, [customPrompt]);
-  useEffect(() => { localStorage.setItem('biometric_ext_results', JSON.stringify(results)); }, [results]);
-
+  const { questionText, optionsText, answerKey, customPrompt, results } = extractor;
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,21 +23,27 @@ export const ExtractorModule: React.FC = () => {
 
     setLoading(true);
     setError(null);
-    setResults([]);
+    setExtractor(prev => ({ ...prev, results: [] }));
     
     try {
       const data = await extractMetrics(questionText, optionsText, answerKey, customPrompt, language);
       
+      let newResults: Partial<QuestionData>[] = [];
       if (Array.isArray(data)) {
-        setResults(data);
+        newResults = data;
       } else {
-        setResults([{ ...data, Question: questionText, options: optionsText, Answer: answerKey || data.Answer }]);
+        newResults = [{ ...data, Question: questionText, options: optionsText, Answer: answerKey || data.Answer }];
       }
+      setExtractor(prev => ({ ...prev, results: newResults }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateExtractor = (field: string, value: string) => {
+    setExtractor(prev => ({ ...prev, [field]: value }));
   };
 
   const textareaClass = "w-full rounded-md border-gray-300 dark:border-slate-600 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm p-3 border bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors duration-200";
@@ -68,7 +62,7 @@ export const ExtractorModule: React.FC = () => {
               rows={6}
               className={textareaClass}
               value={questionText}
-              onChange={e => setQuestionText(e.target.value)}
+              onChange={e => updateExtractor('questionText', e.target.value)}
               placeholder={t('extractorPlaceholder')}
             />
           </div>
@@ -80,7 +74,7 @@ export const ExtractorModule: React.FC = () => {
                 rows={4}
                 className={textareaClass}
                 value={optionsText}
-                onChange={e => setOptionsText(e.target.value)}
+                onChange={e => updateExtractor('optionsText', e.target.value)}
                 placeholder={t('optionsPlaceholder')}
               />
             </div>
@@ -92,7 +86,7 @@ export const ExtractorModule: React.FC = () => {
                 rows={4}
                 className={`${textareaClass} border-emerald-200 bg-emerald-50/30 dark:bg-emerald-900/20`}
                 value={answerKey}
-                onChange={e => setAnswerKey(e.target.value)}
+                onChange={e => updateExtractor('answerKey', e.target.value)}
               />
             </div>
           </div>
@@ -105,7 +99,7 @@ export const ExtractorModule: React.FC = () => {
               rows={2}
               className={textareaClass}
               value={customPrompt}
-              onChange={e => setCustomPrompt(e.target.value)}
+              onChange={e => updateExtractor('customPrompt', e.target.value)}
             />
           </div>
 
@@ -137,7 +131,7 @@ export const ExtractorModule: React.FC = () => {
               className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow font-medium transition-colors flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              {t('exportDocx')}
+              Export PDF
             </button>
           </div>
           <div className="space-y-6">
