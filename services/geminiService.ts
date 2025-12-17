@@ -258,12 +258,16 @@ export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: 
     Analyze Test Data:
     - Reliability (Alpha): ${analysis.reliability}
     - Mean Score: ${analysis.summary.meanScore} / ${analysis.summary.nItems}
-    - Items: ${JSON.stringify(itemsSummary)}
+    - Items Summary: ${JSON.stringify(itemsSummary)}
 
-    Provide concise pedagogical report:
-    1. Overall quality.
-    2. Problematic questions.
-    3. Recommendations.
+    **STRICT OUTPUT REQUIREMENTS:**
+    1. Output strictly in **HTML** format (no Markdown, no \`\`\` wrappers).
+    2. Do **NOT** output the raw JSON data.
+    3. Use <h3> for headings, <ul>/<li> for lists, <p> for paragraphs, <b> for emphasis.
+    4. Provide a concise pedagogical report covering:
+       - Overall quality assessment.
+       - Identification of problematic questions (if any).
+       - Specific recommendations for improvement.
   `;
 
   try {
@@ -272,9 +276,13 @@ export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: 
       contents: prompt,
       config: { temperature: 0.5 },
     });
-    return response.text || "Could not generate insight.";
+    
+    // Cleanup markdown code blocks if the model adds them despite instructions
+    let cleanText = response.text || "";
+    cleanText = cleanText.replace(/^```html/, '').replace(/```$/, '').trim();
+    return cleanText;
   } catch (error) {
-    return "Error generating analysis report.";
+    return "<p>Error generating analysis report.</p>";
   }
 };
 
