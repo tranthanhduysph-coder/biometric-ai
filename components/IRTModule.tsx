@@ -111,9 +111,10 @@ export const IRTModule: React.FC = () => {
               <h3 className="font-bold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
                 {t('aiReport')}
               </h3>
-              <div className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 whitespace-pre-line">
-                {aiReport}
-              </div>
+              <div 
+                className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 [&>h3]:text-indigo-700 [&>h3]:dark:text-indigo-400 [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-2 [&>b]:font-bold [&>strong]:font-bold"
+                dangerouslySetInnerHTML={{ __html: aiReport }}
+              />
             </div>
           )}
 
@@ -148,3 +149,4 @@ export const IRTModule: React.FC = () => {
     </div>
   );
 };
+
