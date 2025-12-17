@@ -4,10 +4,13 @@ import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  if (!process.env.VITE_API_KEY) {
-    throw new Error("API Key is missing. Please check your environment variables.");
+  // Trong Vite, cần sử dụng import.meta.env.VITE_... để truy cập biến môi trường
+  const apiKey = import.meta.env.VITE_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please check your environment variables (VITE_API_KEY).");
   }
-  return new GoogleGenAI({ apiKey: process.env.VITE_API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 const fileToGenerativePart = async (file: File) => {
@@ -84,12 +87,10 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
         tools: tools,
         systemInstruction: getSystemInstructionGenerator(language),
         temperature: 0.7,
-        responseMimeType: tools ? undefined : "application/json", // MIME type not compatible with tools in some cases, but usually okay. If tools used, output might be text that needs parsing, but flash usually adheres to JSON instruction.
+        responseMimeType: tools ? undefined : "application/json",
       },
     });
     
-    // If using tools, the response might contain grounding metadata, we need to extract text and parse.
-    // However, since we asked for JSON in system instruction, Flash usually wraps it in ```json blocks even with tools.
     const jsonStr = cleanJson(response.text || "{}");
     return JSON.parse(jsonStr) as QuestionData;
   } catch (error) {
@@ -215,3 +216,4 @@ export const generateIRTInsight = async (analysis: IRTAnalysisResult, language: 
     return "Error generating analysis report.";
   }
 };
+
