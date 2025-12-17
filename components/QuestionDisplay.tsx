@@ -23,7 +23,7 @@ const safeRender = (content: any): string => {
 };
 
 export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
-  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in-up transition-all duration-300">
@@ -60,22 +60,36 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
           </div>
         )}
 
-        {/* Render Auto-Found Image with Anti-Layout Shift */}
-        {data.imageKeywords && (
+        {/* Render Real Google Image if available */}
+        {data.imageUrl && (
           <div className="my-4 border dark:border-slate-700 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 flex flex-col items-center">
-             <div className={`relative w-full flex justify-center items-center transition-all duration-300 ${!imgLoaded ? 'min-h-[250px] bg-slate-200 dark:bg-slate-800 animate-pulse' : ''}`}>
-               <img 
-                 src={`https://image.pollinations.ai/prompt/${encodeURIComponent(safeRender(data.imageKeywords))}`} 
-                 alt={data.imageDescription || "Biological Illustration"}
-                 className={`w-full max-h-96 object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-                 loading="lazy"
-                 onLoad={() => setImgLoaded(true)}
-               />
-               {!imgLoaded && <span className="absolute text-slate-400 text-sm font-medium">Generating illustration...</span>}
-             </div>
+            {imgError ? (
+               <div className="p-6 flex flex-col items-center justify-center text-center space-y-3">
+                 <span className="text-4xl">🖼️</span>
+                 <p className="text-sm text-slate-500 dark:text-slate-400">Image URL expired or protected.</p>
+                 <a 
+                   href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(data.Content || "biology illustration")}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900 dark:hover:bg-indigo-800 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-lg transition-colors"
+                 >
+                   Search Image on Google
+                 </a>
+               </div>
+            ) : (
+               <div className="relative w-full flex justify-center items-center bg-slate-200 dark:bg-slate-800">
+                 <img 
+                   src={data.imageUrl}
+                   alt="Biological Illustration"
+                   className="w-full max-h-96 object-contain"
+                   loading="lazy"
+                   onError={() => setImgError(true)}
+                 />
+               </div>
+            )}
              <div className="p-3 bg-white dark:bg-slate-800 w-full border-t dark:border-slate-700 text-center">
-               <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">Generated Illustration: "{safeRender(data.imageKeywords)}"</p>
-               {data.imageDescription && <p className="text-sm text-slate-700 dark:text-slate-300">{safeRender(data.imageDescription)}</p>}
+               {data.imageSource && <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">Source: {safeRender(data.imageSource)}</p>}
+               {!imgError && <a href={data.imageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Open Image</a>}
              </div>
           </div>
         )}
@@ -224,3 +238,4 @@ export const QuestionDisplay: React.FC<Props> = ({ data, title }) => {
     </div>
   );
 };
+
