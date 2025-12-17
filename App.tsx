@@ -9,6 +9,7 @@ import { Login } from './components/Login';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SessionProvider } from './contexts/SessionContext';
 
 const MainApp: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.GENERATOR);
@@ -96,9 +97,12 @@ const MainApp: React.FC = () => {
 const App: React.FC = () => (
   <AppProvider>
     <AuthProvider>
-      <MainApp />
+      <SessionProvider>
+        <MainApp />
+      </SessionProvider>
     </AuthProvider>
   </AppProvider>
 );
 
 export default App;
+
