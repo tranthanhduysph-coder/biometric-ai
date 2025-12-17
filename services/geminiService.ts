@@ -4,11 +4,13 @@ import { QuestionData, MetricInput, IRTAnalysisResult, Language } from '../types
 import { KNOWLEDGE_BASE, getSystemInstructionGenerator, getSystemInstructionExtractor } from '../constants';
 
 const getAIClient = () => {
-  // Trong Vite, cần sử dụng import.meta.env.VITE_... để truy cập biến môi trường
-  const apiKey = import.meta.env.VITE_API_KEY;
-  
+  // Support VITE_API_KEY for Vite environments as requested by user.
+  // Fallback to process.env for standard Node/Shim environments.
+  // @ts-ignore
+  const apiKey = import.meta.env.VITE_API_KEY || (typeof process !== "undefined" ? process.env.API_KEY : undefined);
+
   if (!apiKey) {
-    throw new Error("API Key is missing. Please check your environment variables (VITE_API_KEY).");
+    throw new Error("API Key is missing. Please set VITE_API_KEY in your .env file.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -24,14 +26,42 @@ const fileToGenerativePart = async (file: File) => {
   };
 };
 
+// Robust JSON Cleaner to handle Markdown blocks and extra text
 const cleanJson = (text: string): string => {
-  let clean = text.trim();
-  if (clean.startsWith('```json')) {
-    clean = clean.replace(/^```json/, '').replace(/```$/, '');
-  } else if (clean.startsWith('```')) {
-    clean = clean.replace(/^```/, '').replace(/```$/, '');
+  try {
+    // Attempt to find the first '[' or '{' and the last ']' or '}'
+    const firstBracket = text.indexOf('[');
+    const firstBrace = text.indexOf('{');
+    const lastBracket = text.lastIndexOf(']');
+    const lastBrace = text.lastIndexOf('}');
+    
+    let startIndex = -1;
+    let endIndex = -1;
+
+    // Determine if it looks like an array or an object
+    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+      startIndex = firstBracket;
+      endIndex = lastBracket;
+    } else if (firstBrace !== -1) {
+      startIndex = firstBrace;
+      endIndex = lastBrace;
+    }
+
+    if (startIndex !== -1 && endIndex !== -1) {
+      return text.substring(startIndex, endIndex + 1);
+    }
+    
+    // Fallback cleanup if structure isn't clear
+    let clean = text.trim();
+    if (clean.startsWith('```json')) {
+      clean = clean.replace(/^```json/, '').replace(/```$/, '');
+    } else if (clean.startsWith('```')) {
+      clean = clean.replace(/^```/, '').replace(/```$/, '');
+    }
+    return clean;
+  } catch (e) {
+    return text;
   }
-  return clean;
 };
 
 const retrieveContext = (metrics: MetricInput, limit: number = 3): QuestionData[] => {
@@ -47,6 +77,15 @@ const retrieveContext = (metrics: MetricInput, limit: number = 3): QuestionData[
 
   scoredItems.sort((a, b) => b.score - a.score);
   return scoredItems.slice(0, limit).map(i => i.item);
+};
+
+// Helper to chunk array
+const chunkArray = <T>(array: T[], size: number): T[][] => {
+  const chunked: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunked.push(array.slice(i, i + size));
+  }
+  return chunked;
 };
 
 // Single Question Generation
@@ -99,47 +138,69 @@ export const generateQuestion = async (metrics: MetricInput, language: Language 
   }
 };
 
-// Batch Question Generation (Up to 40)
+// Batch Question Generation (Up to 40) - Processed in Chunks
 export const generateBatchQuestions = async (batch: MetricInput[], language: Language = 'vi'): Promise<QuestionData[]> => {
   const ai = getAIClient();
   
-  // Disable image search for batch to prevent rate limits and speed up generation
-  const promptText = `
-    Generate a LIST of biology questions (JSON Array) based on these requirements:
-    
-    ${JSON.stringify(batch.map((m, i) => ({
-      index: i + 1,
-      metrics: {
-        chapter: m.chapter,
-        content: m.content,
-        difficulty: m.difficulty,
-        competency: m.competency,
-        type: m.type,
-        setting: m.setting,
-        custom: m.customPrompt
-      }
-    })))}
+  // Chunk size of 5 is safe for output token limits and prevents timeouts
+  const CHUNK_SIZE = 5; 
+  const chunks = chunkArray(batch, CHUNK_SIZE);
+  let allQuestions: QuestionData[] = [];
 
-    IMPORTANT: Return an ARRAY of ${batch.length} QuestionData objects.
-    DO NOT GENERATE ANY IMAGES OR IMAGE URLS FOR BATCH REQUESTS.
-  `;
+  console.log(`Starting batch generation: ${batch.length} items in ${chunks.length} chunks.`);
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: promptText }] }],
-      config: {
-        systemInstruction: getSystemInstructionGenerator(language),
-        temperature: 0.7,
-        responseMimeType: "application/json",
-      },
-    });
+    for (let i = 0; i < chunks.length; i++) {
+      const currentChunk = chunks[i];
+      const chunkPrompt = `
+        Generate a LIST of biology questions (JSON Array) based on these requirements:
+        
+        ${JSON.stringify(currentChunk.map((m, idx) => ({
+          index: idx + 1 + (i * CHUNK_SIZE),
+          metrics: {
+            chapter: m.chapter,
+            content: m.content,
+            difficulty: m.difficulty,
+            competency: m.competency,
+            type: m.type,
+            setting: m.setting,
+            custom: m.customPrompt
+          }
+        })))}
 
-    const jsonStr = cleanJson(response.text || "[]");
-    return JSON.parse(jsonStr) as QuestionData[];
+        IMPORTANT: Return an ARRAY of ${currentChunk.length} QuestionData objects.
+        DO NOT GENERATE ANY IMAGES OR IMAGE URLS FOR BATCH REQUESTS.
+      `;
+
+      // Add a small delay between chunks to avoid rate limits
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: chunkPrompt }] }],
+        config: {
+          systemInstruction: getSystemInstructionGenerator(language),
+          temperature: 0.7,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const jsonStr = cleanJson(response.text || "[]");
+      const chunkQuestions = JSON.parse(jsonStr) as QuestionData[];
+      
+      if (Array.isArray(chunkQuestions)) {
+        allQuestions = [...allQuestions, ...chunkQuestions];
+      }
+    }
+
+    if (allQuestions.length === 0) {
+      throw new Error("No questions were generated.");
+    }
+
+    return allQuestions;
   } catch (error) {
     console.error("Error generating batch:", error);
-    throw new Error("Failed to generate batch questions.");
+    throw new Error("Failed to generate batch questions. Please check your connection and try again.");
   }
 };
 
